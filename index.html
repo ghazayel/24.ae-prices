@@ -120,7 +120,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.3.1";
+const APP_VERSION = "v1.4.0";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -279,6 +279,24 @@ function submitToSheet(todayAed) {
   fetch(FORM_ACTION_URL, { method: 'POST', mode: 'no-cors', body }).catch(() => {});
 }
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// After submitting, re-read the sheet and check a new row actually landed
+// with today's numbers — mode:'no-cors' means we can't trust the fetch()
+// response alone, so we verify by observation instead of assuming success.
+async function verifySaved(todayAed, priorRowCount) {
+  for (const delayMs of [1500, 2500, 4000]) {
+    await sleep(delayMs);
+    const rows = await fetchRows();
+    if (rows.length > priorRowCount) {
+      const last = rows[rows.length - 1].aed;
+      const matches = ['24','22','21','18','14'].every(k => Math.abs(last[k] - todayAed[k]) < 0.005);
+      if (matches) return true;
+    }
+  }
+  return false;
+}
+
 let currentData = null;
 
 document.getElementById('goBtn').addEventListener('click', async () => {
@@ -334,11 +352,24 @@ document.getElementById('goBtn').addEventListener('click', async () => {
     link.href = canvas.toDataURL('image/png');
     link.classList.add('ready');
 
-    let msg;
-    if (SHEET_CSV_URL.startsWith('PASTE_')) msg = 'تم الرسم (لم يتم حفظ اليوم بعد — أكمل الإعداد في SETUP_GUIDE.md) ✓';
-    else if (!proceedToSubmit) msg = 'تم عرض البطاقة دون حفظ إضافي ✓';
-    else msg = 'تم الحفظ والرسم بنجاح ✓';
-    setStatus(msg, 'ok');
+    if (SHEET_CSV_URL.startsWith('PASTE_')) {
+      setStatus('تم الرسم (لم يتم حفظ اليوم بعد — أكمل الإعداد في SETUP_GUIDE.md) ✓', 'ok');
+    } else if (!proceedToSubmit) {
+      setStatus('تم عرض البطاقة دون حفظ إضافي ✓', 'ok');
+    } else {
+      setStatus('تم الرسم — جارٍ التأكد من الحفظ في الجدول...', 'wait');
+      const saved = await verifySaved(todayAed, rows.length);
+      if (saved) {
+        setStatus('تم الحفظ والرسم بنجاح، وتم التأكد من وصول البيانات إلى الجدول ✓', 'ok');
+      } else {
+        setStatus(
+          '⚠ تم رسم البطاقة، لكن لم أستطع التأكد أن البيانات وصلت إلى Google Sheet. ' +
+          'تحقق يدويًا من الجدول — إذا كان الصف الجديد مفقودًا، تحقق من رابط الفورم ومعرّفات الحقول (entry IDs)، ' +
+          'ومن أنك تفتح الصفحة عبر رابط GitHub Pages (https://...) وليس كملف محلي.',
+          'err'
+        );
+      }
+    }
   } catch (e) {
     setStatus('خطأ: ' + e.message, 'err');
   } finally {
