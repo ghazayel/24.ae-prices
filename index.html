@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>أسعار الذهب - مولد البطاقة اليومية</title>
+<title>أسعار الذهب - مولّد البطاقة اليومية</title>
 
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3RQN1TEJG0"></script>
@@ -370,11 +370,11 @@ document.getElementById('goBtn').addEventListener('click', async () => {
       setStatus('تم إنشاء البطاقة، لحظات من فضلك...', 'wait');
       const saved = await verifySaved(todayAed, rows.length);
       if (saved) {
-        setStatus('تم إنشاء البطاقة وحفظها بنجاح ✓', 'ok');
+        setStatus('تم إضافة الأرقام والعملات بنجاح  ✓', 'ok');
       } else {
         // Friendly, non-alarming message for whoever's using the page —
         // the real technical detail goes to the console for the admin only.
-        setStatus('تم إنشاء البطاقة ✓ (قد يستغرق حفظ البيانات بضع لحظات إضافية)', 'wait');
+        setStatus('تم إضافة الأرقام ✓ (قد يستغرق حفظ البيانات بضع لحظات إضافية)', 'wait');
         console.warn(
           '[gold-card] Could not confirm the row was saved to the Google Sheet within the expected time.\n' +
           'Checklist: (1) page is hosted over https:// (GitHub Pages), not opened as a local file; ' +
