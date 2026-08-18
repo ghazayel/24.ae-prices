@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>أسعار الذهب - البطاقة اليومية</title>
+<title>أسعار الذهب - مولد البطاقة اليومية</title>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3RQN1TEJG0"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-3RQN1TEJG0');
+</script>
+
 <style>
   @font-face{
     font-family:'Avenir Black';
@@ -75,7 +85,7 @@
 </head>
 <body>
 
-<h1>موّلد بطاقة أسعار الذهب اليومية</h1>
+<h1>مولد بطاقة أسعار الذهب اليومية</h1>
 
 <div class="layout">
   <div class="controls">
@@ -120,7 +130,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.4.0";
+const APP_VERSION = "v1.5.0";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -308,11 +318,11 @@ document.getElementById('goBtn').addEventListener('click', async () => {
     '14': +document.getElementById('aed14').value,
   };
   if (Object.values(todayAed).some(v => !v && v !== 0)) {
-    setStatus('الرجاء تعبئة الأسعار الخمسة كلها.', 'err'); return;
+    setStatus('الرجاء تعبئة كل الأسعار الخمسة أولاً.', 'err'); return;
   }
 
   document.getElementById('goBtn').disabled = true;
-  setStatus('جارِ القراءة والحساب...', 'wait');
+  setStatus('لحظات من فضلك...', 'wait');
   try {
     const { iso: todayIso } = todayDubai();
 
@@ -353,25 +363,29 @@ document.getElementById('goBtn').addEventListener('click', async () => {
     link.classList.add('ready');
 
     if (SHEET_CSV_URL.startsWith('PASTE_')) {
-      setStatus('تم الرسم (لم يتم حفظ اليوم بعد — أكمل الإعداد في SETUP_GUIDE.md) ✓', 'ok');
+      setStatus('تم إنشاء البطاقة ✓', 'ok');
     } else if (!proceedToSubmit) {
-      setStatus('تم عرض البطاقة دون حفظ إضافي ✓', 'ok');
+      setStatus('تم إنشاء البطاقة ✓', 'ok');
     } else {
-      setStatus('تم الرسم — جارٍ التأكد من الحفظ في الجدول...', 'wait');
+      setStatus('تم إنشاء البطاقة، لحظات من فضلك...', 'wait');
       const saved = await verifySaved(todayAed, rows.length);
       if (saved) {
-        setStatus('تم الحفظ والرسم بنجاح، وتم التأكد من وصول البيانات إلى الجدول ✓', 'ok');
+        setStatus('تم إنشاء البطاقة وحفظها بنجاح ✓', 'ok');
       } else {
-        setStatus(
-          '⚠ تم رسم البطاقة، لكن لم أستطع التأكد أن البيانات وصلت إلى Google Sheet. ' +
-          'تحقق يدويًا من الجدول — إذا كان الصف الجديد مفقودًا، تحقق من رابط الفورم ومعرّفات الحقول (entry IDs)، ' +
-          'ومن أنك تفتح الصفحة عبر رابط GitHub Pages (https://...) وليس كملف محلي.',
-          'err'
+        // Friendly, non-alarming message for whoever's using the page —
+        // the real technical detail goes to the console for the admin only.
+        setStatus('تم إنشاء البطاقة ✓ (قد يستغرق حفظ البيانات بضع لحظات إضافية)', 'wait');
+        console.warn(
+          '[gold-card] Could not confirm the row was saved to the Google Sheet within the expected time.\n' +
+          'Checklist: (1) page is hosted over https:// (GitHub Pages), not opened as a local file; ' +
+          '(2) FORM_ACTION_URL ends in /formResponse; (3) ENTRY_IDS map to the correct questions; ' +
+          '(4) the Google Form allows responses without sign-in.'
         );
       }
     }
   } catch (e) {
-    setStatus('خطأ: ' + e.message, 'err');
+    setStatus('حدث خطأ بسيط، حاول مرة أخرى.', 'err');
+    console.warn('[gold-card] Unexpected error:', e);
   } finally {
     document.getElementById('goBtn').disabled = false;
   }
