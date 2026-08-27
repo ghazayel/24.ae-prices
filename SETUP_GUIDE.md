@@ -87,13 +87,40 @@ The page uses **[fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchan
 - **Reliability:** it's a well-established community project (100M+ downloads), but it's still a free/volunteer-run service, not an SLA-backed paid API. If it ever goes down permanently, the page's FX calls would start failing (you'd see an error in the status line, and could still fall back to typing all 4 currencies by hand as a stopgap while a replacement source gets wired in).
 - **If you'd rather use a specific bank's or exchange's official rate** instead, that's a one-line change (swap the `fetchFx()` URL) — let me know and I can switch it.
 
+## Fetching AED prices automatically ("جلب الأسعار من Dubai City of Gold")
+
+A "جلب الأسعار من Dubai City of Gold" button sits above the AED fields. Pressing it pulls the current 24K/22K/21K/18K/14K prices straight from **dubaicityofgold.com** (run by Dubai Jewellery Group — the same source already credited at the bottom of your card) and fills the five fields in for you. You still review the numbers and press "إنشاء البطاقة" yourself — nothing submits automatically.
+
+**How it works technically:** browsers won't let a page call another website's server directly (a security rule called CORS). To get around that, the button routes the request through a small public relay service (`allorigins.win`, with two backup relays if the first is down) that simply re-serves the page's HTML with permission granted. This is a standard, widely-used technique — not something fragile or unusual — but it does mean:
+
+- **These relays are free community services, not something we control or pay for.** They're generally reliable but can occasionally be slow or briefly unavailable, same risk category as the exchange-rate API.
+- **If Dubai City of Gold ever redesigns that part of their site**, the text pattern the button looks for (`sortd-gold-type` / `sortd-gold-value`) could stop matching, and the fetch would fail.
+- **Either way, failure is silent and safe** — you'll just see "تعذر الجلب التلقائي هذه المرة" under the button, and the fields stay empty for you to fill in by hand, exactly like before this feature existed. It never blocks card generation.
+
+If the automatic fetch ever stops working and you want it fixed, send me a fresh screenshot of that site's price section HTML (same way you did the first time) and I can update the matching pattern.
+
+## Safety net: automatic fallback if nobody opens the page
+
+There's a second, independent piece that runs entirely on GitHub's servers, no browser involved: **once a day at 2:00 PM Dubai time**, a scheduled check runs automatically. If nobody has generated a card yet that day (i.e. there's no row in the Sheet timestamped today), it fetches the same 5 prices from Dubai City of Gold itself and saves them — quietly, in the background, without anyone needing to visit the page.
+
+**Why this exists:** the color comparison always looks at the *previous* row in the Sheet. If a day gets skipped entirely (nobody opens the page, office closed, etc.), the next real card generated would end up comparing against 2-day-old prices instead of yesterday's — this closes that gap.
+
+**What it does and doesn't do:**
+- It only ensures a data point exists in the Sheet for today. It does **not** generate or publish a card image — if you open the page later that same day, you'll still generate and download a card as normal; this just means the color comparison behind it will be accurate either way.
+- If a card *has* already been generated that day (by anyone, from any device) before 2 PM, this does nothing — no duplicate rows.
+- If it runs and succeeds, it's invisible — nothing to check unless you're curious. If it fails (source site unreachable, layout changed, etc.), the run shows up with a red ✗ in your repo's **Actions** tab, and GitHub will typically email you automatically about the failed scheduled run.
+
+**To test it without waiting for the schedule:** repo → **Actions** tab → **"Fallback gold price fetch (safety net)"** → **Run workflow**. Check the run's log — it'll clearly say either "today's data already exists, nothing to do" or show the prices it fetched and confirmed saving.
+
+**One honest limitation:** GitHub's free scheduled workflows aren't guaranteed to run at the exact minute — a few minutes of delay during busy periods is normal and not something you can configure around. For a once-a-day safety net, that's not meaningful in practice.
+
 ## Part 2 — Your daily routine
 
 **Important: always use your live GitHub Pages link (`https://...github.io/...`), never open `index.html` directly as a local file.** Background saves to Google Sheets are blocked silently when run from a local file — the page will look like it worked but nothing will actually save. Hosted over `https://`, it works correctly, and the page now double-checks the save and tells you clearly if something went wrong (see below).
 
 1. Open your GitHub Pages link (bookmark it — same link works on every laptop).
-2. Type the 5 AED prices for today.
-3. Adjust the time if it's not 10:00 AM.
+2. Click **"جلب الأسعار من Dubai City of Gold"** to auto-fill the 5 AED fields (or just type them in yourself — both work).
+3. Double-check the numbers look right, and adjust the time if it's not 10:00 AM.
 4. Click **"إنشاء البطاقة وحفظ اليوم"**. The page reads yesterday's row, submits today's row in the background, computes EUR/USD/SAR from live rates, and colors every cell — all in one step, on one page.
    - If today's prices were already submitted earlier (by you or from another device), you'll get a confirmation popup before it saves a second entry for today — so an accidental double-click or double-run doesn't quietly duplicate your day's data. Choosing "Cancel" still renders/downloads the card, it just skips saving again.
 5. Click **"تحميل الصورة PNG"** to download the finished card.
@@ -110,11 +137,11 @@ If the Sheet is briefly unreachable, the card still renders (just without the co
 
 ---
 
-## Part 3 — Optional: generate from GitHub directly (no page needed)
+## Removed: the old "generate from GitHub directly" workflow
 
-Since the AED prices are the one thing only you know each day, full unattended automation isn't possible without them coming from somewhere — but if you'd rather type them into a GitHub form than open the webpage, the repo includes a workflow for that: **Actions tab → "Generate daily gold price card" → Run workflow**, type the 5 AED prices into the boxes, run it. It opens the page in a headless browser, submits and renders exactly like the button does, and commits the finished PNG to `output/gold-price-card.png` in the repo.
+An earlier version of this guide mentioned a second, optional GitHub Action (`generate-card.yml` / `scripts/generate.mjs`) that let you type prices into GitHub's Actions tab instead of the webpage. **That workflow is no longer included** — tracing through it, it opened the page as a local `file://` page inside the Action, which silently blocks the same Sheet-saving requests the page needs (the exact issue described in the Troubleshooting section above). Rather than leave a broken file in the repo to cause confusion, it's been removed — if you have it in your repo from an earlier upload, it's safe to delete.
 
-This is entirely optional — the webpage itself is already the simplest path for daily use.
+The **"Safety net"** section above (the 2 PM automatic fallback) covers the same underlying need — making sure a data point exists even if nobody manually runs anything — without this problem, since it doesn't open the page at all, just makes plain server-side requests. If you specifically want a button-triggered manual GitHub-side generator again, let me know and I'll rebuild it properly against the current page.
 
 ---
 

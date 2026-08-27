@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مولّد بطاقة أسعار الذهب اليومية</title>
+<title>موّلد بطاقة أسعار الذهب اليومية</title>
 
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3RQN1TEJG0"></script>
@@ -62,6 +62,20 @@
   }
   button.primary:hover{filter:brightness(1.08);}
   button.primary:disabled{opacity:.5; cursor:not-allowed;}
+  button.secondary{
+    background:transparent; color:var(--accent); font-weight:600; cursor:pointer;
+    border:1px solid #3a5a78; padding:10px; font-size:14px; border-radius:6px;
+  }
+  button.secondary:hover{background:rgba(212,175,55,0.08);}
+  button.secondary:disabled{opacity:.5; cursor:not-allowed;}
+  .fetch-note{font-size:11px; color:#7ea0bd; line-height:1.5; padding:0 2px;}
+  .spinner{
+    display:inline-block; width:11px; height:11px; margin-inline-end:6px;
+    border:2px solid rgba(212,175,55,0.25); border-top-color:var(--accent);
+    border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle;
+  }
+  .spinner.hidden{display:none;}
+  @keyframes spin{ to { transform:rotate(360deg); } }
   #card{
     border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); max-width:420px; width:100%; height:auto;
     background:#000;
@@ -92,10 +106,13 @@
 
 <canvas id="bgFx" aria-hidden="true"></canvas>
 
-<h1>مولّد بطاقة أسعار الذهب اليومية</h1>
+<h1>موّلد بطاقة أسعار الذهب اليومية</h1>
 
 <div class="layout">
   <div class="controls">
+    <button class="secondary" id="fetchPricesBtn" type="button">جلب الأسعار من Dubai City of Gold</button>
+    <div class="fetch-note" id="fetchNote"><span class="spinner hidden" id="fetchSpinner"></span><span id="fetchNoteText">اضغط الزر لجلب أسعار درهم إماراتي تلقائيًا، أو أدخلها يدويًا أدناه.</span></div>
+
     <div class="aed-grid">
       <div class="full"><label>وقت البطاقة</label><input id="timeInput" type="time" value="10:00"></div>
       <div><label>عيار 24 (AED)</label><input id="aed24" type="number" step="0.01" inputmode="decimal"></div>
@@ -137,7 +154,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.6.1";
+const APP_VERSION = "v1.7.2";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -185,13 +202,13 @@ function getAudioCtx() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
-function playTone(freq, duration, delay = 0, volume = 0.05) {
+function playTone(freq, duration, delay = 0, volume = 0.05, type = 'sine') {
   if (!soundEnabled) return;
   try {
     const ctx = getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = type;
     osc.frequency.value = freq;
     const t0 = ctx.currentTime + delay;
     gain.gain.setValueAtTime(0, t0);
@@ -396,6 +413,100 @@ async function verifySaved(todayAed, priorRowCount) {
   }
   return false;
 }
+
+// =====================================================================
+// Manual "fetch prices" button — pulls today's AED prices directly from
+// Dubai City of Gold (the same organization already credited at the
+// bottom of the card). Browsers block a page from calling another site's
+// server directly (CORS), so this goes through a small public relay
+// that simply re-serves the page with permissive headers. If every relay
+// fails, the fields are left alone and a plain message asks for manual
+// entry — nothing here ever blocks generating the card by hand.
+// =====================================================================
+const GOLD_SOURCE_URL = 'https://dubaicityofgold.com/';
+const CORS_RELAYS = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+const RELAY_TIMEOUT_MS = 6000; // fail fast and try the next relay rather than hang
+
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { cache: 'no-store', signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function fetchGoldSourceHtml() {
+  for (const makeUrl of CORS_RELAYS) {
+    try {
+      const res = await fetchWithTimeout(makeUrl(GOLD_SOURCE_URL), RELAY_TIMEOUT_MS);
+      if (!res.ok) continue;
+      const html = await res.text();
+      if (html && html.length > 1000) return html;
+    } catch (e) { /* timed out or failed — try next relay immediately */ }
+  }
+  throw new Error('unreachable');
+}
+
+function parseGoldPricesFromHtml(html) {
+  // Matches pairs like:
+  // <span class="sortd-gold-type">24K Gold</span> ... <span class="sortd-gold-value">AED 559.25</span>
+  const re = /sortd-gold-type[^>]*>\s*(\d+)K\s*Gold\s*<\/span>\s*<span[^>]*sortd-gold-value[^>]*>\s*AED\s*([\d,.]+)\s*<\/span>/gi;
+  const found = {};
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const karat = m[1];
+    const val = parseFloat(m[2].replace(/,/g, ''));
+    if (['24','22','21','18','14'].includes(karat) && !isNaN(val)) found[karat] = val;
+  }
+  return found;
+}
+
+function playFetchSuccessChime() {
+  // Short, clearly-audible mechanical "beep-beep" — square wave (electronic
+  // buzzer character, not a soft musical tone) at a higher volume than the
+  // other sounds since this one specifically needed to be heard.
+  playTone(1000, 0.09, 0,    0.16, 'square');
+  playTone(1000, 0.09, 0.14, 0.16, 'square');
+}
+
+document.getElementById('fetchPricesBtn').addEventListener('click', async () => {
+  playClickSound();
+  const btn = document.getElementById('fetchPricesBtn');
+  const note = document.getElementById('fetchNote');
+  const noteText = document.getElementById('fetchNoteText');
+  const spinner = document.getElementById('fetchSpinner');
+  btn.disabled = true;
+  spinner.classList.remove('hidden');
+  noteText.textContent = 'جارِ الجلب من Dubai City of Gold...';
+  try {
+    const html = await fetchGoldSourceHtml();
+    const prices = parseGoldPricesFromHtml(html);
+    const gotAll = ['24','22','21','18','14'].every(k => prices[k] != null);
+    if (!gotAll) throw new Error('incomplete');
+
+    document.getElementById('aed24').value = prices['24'];
+    document.getElementById('aed22').value = prices['22'];
+    document.getElementById('aed21').value = prices['21'];
+    document.getElementById('aed18').value = prices['18'];
+    document.getElementById('aed14').value = prices['14'];
+
+    const now = new Intl.DateTimeFormat('ar', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' }).format(new Date());
+    noteText.textContent = `تم الجلب من Dubai City of Gold الساعة ${now} ✓ — راجع الأرقام ثم اضغط "إنشاء البطاقة"`;
+    playFetchSuccessChime();
+  } catch (e) {
+    noteText.textContent = 'تعذر الجلب التلقائي هذه المرة — الرجاء إدخال الأسعار يدويًا أدناه.';
+    console.warn('[gold-card] source fetch/parse failed:', e);
+  } finally {
+    spinner.classList.add('hidden');
+    btn.disabled = false;
+  }
+});
 
 let currentData = null;
 
