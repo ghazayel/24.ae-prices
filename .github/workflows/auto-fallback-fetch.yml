@@ -1,1 +1,29 @@
+name: Fallback gold price fetch (safety net)
 
+# Runs once a day at 14:00 Asia/Dubai time (= 10:00 UTC, Dubai has no DST).
+# If nobody has generated a card yet that day, this pulls today's prices
+# from Dubai City of Gold and saves them to the Sheet, so tomorrow's color
+# comparison never has to fall back to 2+ day old data. If a card has
+# already been generated today, this does nothing.
+#
+# Note: GitHub's free scheduled workflows can run a few minutes late during
+# busy periods — this is a platform limitation, not something to configure
+# around. For a once-a-day safety net, that's not meaningful.
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch: {}   # lets you trigger it manually from the Actions tab to test it
+
+jobs:
+  fallback-fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run fallback fetch
+        run: node scripts/auto-fallback-fetch.mjs
