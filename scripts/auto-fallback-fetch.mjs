@@ -69,6 +69,7 @@ async function fetchGoldPricesFromSource() {
   const res = await fetch(GOLD_SOURCE_URL, { headers: { 'User-Agent': 'Mozilla/5.0 (gold-card-fallback-bot)' } });
   if (!res.ok) throw new Error(`Source fetch failed: HTTP ${res.status}`);
   const html = await res.text();
+  console.log(`[fallback] Fetched source page directly (no relay needed server-side): ${html.length} chars`);
 
   const re = /sortd-gold-type[^>]*>\s*(\d+)K\s*Gold\s*<\/span>\s*<span[^>]*sortd-gold-value[^>]*>\s*AED\s*([\d,.]+)\s*<\/span>/gi;
   const found = {};
@@ -79,7 +80,11 @@ async function fetchGoldPricesFromSource() {
     if (['24', '22', '21', '18', '14'].includes(karat) && !isNaN(val)) found[karat] = val;
   }
   const gotAll = ['24', '22', '21', '18', '14'].every(k => found[k] != null);
-  if (!gotAll) throw new Error('Could not parse all 5 prices from source HTML (site layout may have changed)');
+  if (!gotAll) {
+    console.error(`[fallback] Only parsed ${Object.keys(found).length}/5 prices:`, found);
+    console.error('[fallback] First 800 chars of fetched HTML for inspection:\n' + html.slice(0, 800));
+    throw new Error('Could not parse all 5 prices from source HTML (site layout may have changed)');
+  }
   return found;
 }
 
