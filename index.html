@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مولّد بطاقة أسعار الذهب اليومية</title>
+<title>موّلد بطاقة أسعار الذهب اليومية</title>
 
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3RQN1TEJG0"></script>
@@ -106,7 +106,7 @@
 
 <canvas id="bgFx" aria-hidden="true"></canvas>
 
-<h1>مولّد بطاقة أسعار الذهب اليومية</h1>
+<h1>موّلد بطاقة أسعار الذهب اليومية</h1>
 
 <div class="layout">
   <div class="controls">
@@ -123,7 +123,7 @@
     </div>
 
     <div class="status wait" id="status">أدخل أسعار اليوم بالدرهم واضغط الزر.</div>
-    <button class="primary" id="goBtn">أنشئ البطاقة واحفظ أرقام اليوم لمقارنتها غداً</button>
+    <button class="primary" id="goBtn">إنشاء البطاقة وحفظ اليوم</button>
   </div>
 
   <div class="canvas-wrap">
@@ -154,7 +154,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.7.2";
+const APP_VERSION = "v1.7.3";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -429,7 +429,7 @@ const CORS_RELAYS = [
   url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
-const RELAY_TIMEOUT_MS = 6000; // fail fast and try the next relay rather than hang
+const RELAY_TIMEOUT_MS = 9000; // the source page has grown heavier (video banners etc.); give relays more room before giving up
 
 async function fetchWithTimeout(url, timeoutMs) {
   const controller = new AbortController();
@@ -441,16 +441,33 @@ async function fetchWithTimeout(url, timeoutMs) {
   }
 }
 
+// Tries each relay in turn and logs exactly what happened at each one, so a
+// failure can be diagnosed from the browser console (F12 → Console) instead
+// of guessed at. Returns { html } on success, or { html: null, log } with a
+// per-relay breakdown on total failure.
 async function fetchGoldSourceHtml() {
+  const attemptLog = [];
   for (const makeUrl of CORS_RELAYS) {
+    const relayUrl = makeUrl(GOLD_SOURCE_URL);
+    const relayHost = new URL(relayUrl).hostname;
     try {
-      const res = await fetchWithTimeout(makeUrl(GOLD_SOURCE_URL), RELAY_TIMEOUT_MS);
-      if (!res.ok) continue;
+      const res = await fetchWithTimeout(relayUrl, RELAY_TIMEOUT_MS);
+      if (!res.ok) {
+        attemptLog.push(`${relayHost}: HTTP ${res.status}`);
+        continue;
+      }
       const html = await res.text();
-      if (html && html.length > 1000) return html;
-    } catch (e) { /* timed out or failed — try next relay immediately */ }
+      if (!html || html.length < 1000) {
+        attemptLog.push(`${relayHost}: responded but content looked too short (${html ? html.length : 0} chars)`);
+        continue;
+      }
+      attemptLog.push(`${relayHost}: OK (${html.length} chars)`);
+      return { html, log: attemptLog };
+    } catch (e) {
+      attemptLog.push(`${relayHost}: ${e.name === 'AbortError' ? `timed out after ${RELAY_TIMEOUT_MS/1000}s` : e.message}`);
+    }
   }
-  throw new Error('unreachable');
+  return { html: null, log: attemptLog };
 }
 
 function parseGoldPricesFromHtml(html) {
@@ -485,10 +502,23 @@ document.getElementById('fetchPricesBtn').addEventListener('click', async () => 
   spinner.classList.remove('hidden');
   noteText.textContent = 'جارِ الجلب من Dubai City of Gold...';
   try {
-    const html = await fetchGoldSourceHtml();
+    const { html, log } = await fetchGoldSourceHtml();
+    if (!html) {
+      console.warn('[gold-card] Could not reach the source through any relay:\n' + log.join('\n'));
+      throw new Error('unreachable');
+    }
+
     const prices = parseGoldPricesFromHtml(html);
     const gotAll = ['24','22','21','18','14'].every(k => prices[k] != null);
-    if (!gotAll) throw new Error('incomplete');
+    if (!gotAll) {
+      console.warn(
+        '[gold-card] Reached the source page but could not find all 5 prices in it — the site\'s layout may have changed.\n' +
+        `Relay log:\n${log.join('\n')}\n` +
+        `Prices found: ${JSON.stringify(prices)}\n` +
+        `First 500 chars of fetched HTML for inspection:\n${html.slice(0, 500)}`
+      );
+      throw new Error('incomplete');
+    }
 
     document.getElementById('aed24').value = prices['24'];
     document.getElementById('aed22').value = prices['22'];
@@ -501,7 +531,6 @@ document.getElementById('fetchPricesBtn').addEventListener('click', async () => 
     playFetchSuccessChime();
   } catch (e) {
     noteText.textContent = 'تعذر الجلب التلقائي هذه المرة — الرجاء إدخال الأسعار يدويًا أدناه.';
-    console.warn('[gold-card] source fetch/parse failed:', e);
   } finally {
     spinner.classList.add('hidden');
     btn.disabled = false;
