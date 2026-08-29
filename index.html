@@ -154,7 +154,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.7.3";
+const APP_VERSION = "v1.8.0";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -418,56 +418,65 @@ async function verifySaved(todayAed, priorRowCount) {
 // Manual "fetch prices" button — pulls today's AED prices directly from
 // Dubai City of Gold (the same organization already credited at the
 // bottom of the card). Browsers block a page from calling another site's
-// server directly (CORS), so this goes through a small public relay
-// that simply re-serves the page with permissive headers. If every relay
+// server directly (CORS), so this goes through small public relays that
+// simply re-serve the page with permissive headers. All relays are tried
+// in parallel (not one-by-one) so a single slow/dead one can't hold up the
+// others — we resolve as soon as the first one succeeds. If every relay
 // fails, the fields are left alone and a plain message asks for manual
 // entry — nothing here ever blocks generating the card by hand.
 // =====================================================================
 const GOLD_SOURCE_URL = 'https://dubaicityofgold.com/';
 const CORS_RELAYS = [
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://corsfix.com/${url}`,
+  url => `https://cors.x2u.in/${url}`,
+  // corsproxy.io removed: as of 2026 its free tier only serves localhost
+  // requests and returns HTTP 401 for real sites — a permanent dead end,
+  // not a transient failure.
 ];
-const RELAY_TIMEOUT_MS = 9000; // the source page has grown heavier (video banners etc.); give relays more room before giving up
+const RELAY_TIMEOUT_MS = 12000; // generous, since relays now run in parallel rather than one-by-one — this is the worst case, not a per-attempt tax
 
-async function fetchWithTimeout(url, timeoutMs) {
+async function attemptRelay(makeUrl, timeoutMs) {
+  const relayUrl = makeUrl(GOLD_SOURCE_URL);
+  const relayHost = new URL(relayUrl).hostname;
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { cache: 'no-store', signal: controller.signal });
-  } finally {
-    clearTimeout(id);
+    const res = await fetch(relayUrl, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return { relayHost, ok: false, reason: `HTTP ${res.status}` };
+    const html = await res.text();
+    if (!html || html.length < 1000) return { relayHost, ok: false, reason: `content too short (${html ? html.length : 0} chars)` };
+    return { relayHost, ok: true, html, reason: `OK (${html.length} chars)` };
+  } catch (e) {
+    clearTimeout(timer);
+    return { relayHost, ok: false, reason: e.name === 'AbortError' ? `timed out after ${timeoutMs / 1000}s` : e.message };
   }
 }
 
-// Tries each relay in turn and logs exactly what happened at each one, so a
-// failure can be diagnosed from the browser console (F12 → Console) instead
-// of guessed at. Returns { html } on success, or { html: null, log } with a
-// per-relay breakdown on total failure.
-async function fetchGoldSourceHtml() {
+// Fires all relays at once and resolves the moment the first one succeeds,
+// rather than waiting on each in turn. Always logs every relay's outcome
+// (for diagnosing failures in the console) even after an early success.
+function fetchGoldSourceHtml() {
+  const attempts = CORS_RELAYS.map(makeUrl => attemptRelay(makeUrl, RELAY_TIMEOUT_MS));
   const attemptLog = [];
-  for (const makeUrl of CORS_RELAYS) {
-    const relayUrl = makeUrl(GOLD_SOURCE_URL);
-    const relayHost = new URL(relayUrl).hostname;
-    try {
-      const res = await fetchWithTimeout(relayUrl, RELAY_TIMEOUT_MS);
-      if (!res.ok) {
-        attemptLog.push(`${relayHost}: HTTP ${res.status}`);
-        continue;
-      }
-      const html = await res.text();
-      if (!html || html.length < 1000) {
-        attemptLog.push(`${relayHost}: responded but content looked too short (${html ? html.length : 0} chars)`);
-        continue;
-      }
-      attemptLog.push(`${relayHost}: OK (${html.length} chars)`);
-      return { html, log: attemptLog };
-    } catch (e) {
-      attemptLog.push(`${relayHost}: ${e.name === 'AbortError' ? `timed out after ${RELAY_TIMEOUT_MS/1000}s` : e.message}`);
-    }
-  }
-  return { html: null, log: attemptLog };
+  return new Promise(resolve => {
+    let settled = 0;
+    let resolved = false;
+    attempts.forEach(p => {
+      p.then(result => {
+        attemptLog.push(`${result.relayHost}: ${result.reason}`);
+        if (!resolved && result.ok) {
+          resolved = true;
+          resolve({ html: result.html, log: attemptLog });
+        }
+      }).finally(() => {
+        settled++;
+        if (settled === attempts.length && !resolved) resolve({ html: null, log: attemptLog });
+      });
+    });
+  });
 }
 
 function parseGoldPricesFromHtml(html) {
