@@ -154,7 +154,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.8.0";
+const APP_VERSION = "v1.9.0";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -418,15 +418,26 @@ async function verifySaved(todayAed, priorRowCount) {
 // Manual "fetch prices" button — pulls today's AED prices directly from
 // Dubai City of Gold (the same organization already credited at the
 // bottom of the card). Browsers block a page from calling another site's
-// server directly (CORS), so this goes through small public relays that
-// simply re-serve the page with permissive headers. All relays are tried
-// in parallel (not one-by-one) so a single slow/dead one can't hold up the
-// others — we resolve as soon as the first one succeeds. If every relay
-// fails, the fields are left alone and a plain message asks for manual
-// entry — nothing here ever blocks generating the card by hand.
+// server directly (CORS), so this goes through small relays that simply
+// re-serve the page with permissive headers. The first entry, if
+// configured, is a small Cloudflare Worker under our own control — far
+// more reliable than shared public proxies, which the target site appears
+// to actively block (evidenced by a 401, a CORS block, a 404, and two
+// timeouts across 5 different public services). The public relays are
+// kept afterward purely as a last-resort backup chain.
+// All relays are tried in parallel (not one-by-one) so a single slow/dead
+// one can't hold up the others — we resolve as soon as the first succeeds.
+// If every relay fails, the fields are left alone and a plain message asks
+// for manual entry — nothing here ever blocks generating the card by hand.
 // =====================================================================
 const GOLD_SOURCE_URL = 'https://dubaicityofgold.com/';
+
+// Fill this in once you deploy the Cloudflare Worker (see SETUP_GUIDE.md).
+// Leave as-is to skip straight to the public-relay backups.
+const OWN_RELAY_URL = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+
 const CORS_RELAYS = [
+  ...(OWN_RELAY_URL.startsWith('PASTE_') ? [] : [() => OWN_RELAY_URL]),
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
   url => `https://corsfix.com/${url}`,
