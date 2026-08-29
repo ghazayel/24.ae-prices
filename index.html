@@ -434,7 +434,7 @@ const GOLD_SOURCE_URL = 'https://dubaicityofgold.com/';
 
 // Fill this in once you deploy the Cloudflare Worker (see SETUP_GUIDE.md).
 // Leave as-is to skip straight to the public-relay backups.
-const OWN_RELAY_URL = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+const OWN_RELAY_URL = "https://gold-card-relay.mghazayel.workers.dev/";
 
 const CORS_RELAYS = [
   ...(OWN_RELAY_URL.startsWith('PASTE_') ? [] : [() => OWN_RELAY_URL]),
