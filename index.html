@@ -38,55 +38,57 @@
     background:#0a1420; color:#eee; margin:0; padding:24px;
     display:flex; flex-direction:column; align-items:center; gap:20px;
     position:relative;
+    font-size:clamp(15px, 1.05vw + 10px, 18px); /* base text scales with viewport width, desktop reads noticeably larger than before without needing zoom */
   }
-  h1{font-size:20px; color:var(--accent); margin:0;}
-  .layout{display:flex; gap:28px; flex-wrap:wrap; justify-content:center; width:100%; max-width:1200px;}
+  h1{font-size:clamp(22px, 1.6vw + 14px, 30px); color:var(--accent); margin:0;}
+  .layout{display:flex; gap:32px; flex-wrap:wrap; justify-content:center; width:100%; max-width:1320px;}
   .controls{
-    background:var(--panel); border:1px solid #1e3a55; border-radius:12px; padding:20px;
-    width:360px; display:flex; flex-direction:column; gap:14px;
+    background:var(--panel); border:1px solid #1e3a55; border-radius:14px; padding:28px;
+    width:min(94vw, 460px); display:flex; flex-direction:column; gap:18px;
   }
-  .controls label{font-size:13px; color:#9fb4c9; display:block; margin-bottom:4px;}
+  .controls label{font-size:1em; color:#9fb4c9; display:block; margin-bottom:6px;}
   .controls input, .controls button{
-    width:100%; padding:9px 10px; border-radius:6px; border:1px solid #2a4a6a;
-    background:#0b1e30; color:#fff; font-size:15px;
+    width:100%; padding:13px 14px; border-radius:8px; border:1px solid #2a4a6a;
+    background:#0b1e30; color:#fff; font-size:1.15em;
   }
-  .aed-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .aed-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .aed-grid .full{grid-column:1 / -1;}
-  .status{font-size:12px; padding:8px; border-radius:6px; background:#0b1e30; line-height:1.5;}
+  .status{font-size:0.95em; padding:12px; border-radius:8px; background:#0b1e30; line-height:1.5;}
   .status.ok{color:#7CE07C;}
   .status.err{color:#ff8a8a;}
   .status.wait{color:#f4d35e;}
   button.primary{
-    background:var(--accent); color:#1a1a1a; font-weight:700; cursor:pointer; border:none; padding:13px;
-    font-size:16px;
+    background:var(--accent); color:#1a1a1a; font-weight:700; cursor:pointer; border:none; padding:17px;
+    font-size:1.2em;
   }
   button.primary:hover{filter:brightness(1.08);}
   button.primary:disabled{opacity:.5; cursor:not-allowed;}
   button.secondary{
     background:transparent; color:var(--accent); font-weight:600; cursor:pointer;
-    border:1px solid #3a5a78; padding:10px; font-size:14px; border-radius:6px;
+    border:1px solid #3a5a78; padding:13px; font-size:1.05em; border-radius:8px;
   }
   button.secondary:hover{background:rgba(212,175,55,0.08);}
   button.secondary:disabled{opacity:.5; cursor:not-allowed;}
-  .fetch-note{font-size:11px; color:#7ea0bd; line-height:1.5; padding:0 2px;}
+  .fetch-note{font-size:0.85em; color:#7ea0bd; line-height:1.5; padding:0 2px;}
   .spinner{
-    display:inline-block; width:11px; height:11px; margin-inline-end:6px;
+    display:inline-block; width:13px; height:13px; margin-inline-end:6px;
     border:2px solid rgba(212,175,55,0.25); border-top-color:var(--accent);
     border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle;
   }
   .spinner.hidden{display:none;}
   @keyframes spin{ to { transform:rotate(360deg); } }
   #card{
-    border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); max-width:420px; width:100%; height:auto;
+    border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); max-width:min(94vw, 560px); width:100%; height:auto;
     background:#000;
   }
-  .canvas-wrap{display:flex; flex-direction:column; align-items:center; gap:12px;}
+  .canvas-wrap{display:flex; flex-direction:column; align-items:center; gap:14px;}
   a.download{
-    background:#1f8a3d; color:#fff; text-decoration:none; padding:10px 18px; border-radius:8px; font-weight:700;
+    background:#1f8a3d; color:#fff; text-decoration:none; padding:14px 24px; border-radius:9px; font-weight:700;
+    font-size:1.1em;
     pointer-events:none; opacity:.4;
   }
   a.download.ready{pointer-events:auto; opacity:1;}
-  details{background:var(--panel); border-radius:10px; padding:14px 18px; width:100%; max-width:1200px; color:#bcd; font-size:13px; line-height:1.6;}
+  details{background:var(--panel); border-radius:10px; padding:16px 20px; width:100%; max-width:1200px; color:#bcd; font-size:0.95em; line-height:1.6;}
   summary{cursor:pointer; color:var(--accent); font-weight:700;}
   code{background:#0b1e30; padding:1px 5px; border-radius:4px;}
   .karat-label{font-size:12px; color:#6fa; opacity:.8;}
@@ -106,7 +108,7 @@
 
 <canvas id="bgFx" aria-hidden="true"></canvas>
 
-<h1>موّلد بطاقة أسعار الذهب اليومية</h1>
+<h1>مولّد بطاقة أسعار الذهب اليومية</h1>
 
 <div class="layout">
   <div class="controls">
@@ -154,7 +156,7 @@ const ENTRY_IDS = {
 // Bump this string every time you re-upload a new version of this file.
 // Shown discreetly in the corner of the page (not baked into the
 // downloaded image) so you can confirm which version is live.
-const APP_VERSION = "v1.9.2";
+const APP_VERSION = "v1.10.1";
 
 // How often an open tab auto-reloads itself, so nobody keeps working in a
 // stale version after you've pushed an update.
@@ -367,7 +369,13 @@ async function fetchRows() {
     const res = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
     if (!res.ok) return [];
     const text = await res.text();
-    const rows = parseCSV(text).slice(1).filter(r => r.length >= 6 && r[1] !== '');
+    // Require all 5 price columns to be present and genuinely numeric —
+    // a row with even one blank/garbled cell is excluded entirely rather
+    // than silently producing a NaN comparison later (which previously
+    // caused unrelated cells to render red for no real reason).
+    const rows = parseCSV(text).slice(1).filter(r =>
+      r.length >= 6 && [1,2,3,4,5].every(i => r[i] !== '' && !isNaN(+r[i]))
+    );
     return rows.map(r => ({
       timestamp: r[0],
       aed: { '24': +r[1], '22': +r[2], '21': +r[3], '18': +r[4], '14': +r[5] },
@@ -434,7 +442,7 @@ const GOLD_SOURCE_URL = 'https://dubaicityofgold.com/';
 
 // Fill this in once you deploy the Cloudflare Worker (see SETUP_GUIDE.md).
 // Leave as-is to skip straight to the public-relay backups.
-const OWN_RELAY_URL = "https://gold-card-relay.mghazayel.workers.dev/";
+const OWN_RELAY_URL = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
 
 const CORS_RELAYS = [
   ...(OWN_RELAY_URL.startsWith('PASTE_') ? [] : [() => OWN_RELAY_URL]),
@@ -600,7 +608,7 @@ document.getElementById('goBtn').addEventListener('click', async () => {
       proceedToSubmit = confirm(
         `تم حفظ أسعار اليوم مسبقًا (آخر حفظ: ${lastRow.timestamp}).\n` +
         `هل تريد حفظ هذه القيم كإدخال إضافي لهذا اليوم؟\n` +
-        `(اضغط "إلغاء" لعرض البطاقة فقط دون الحفظ مرة أخرى)`
+        `(اضغط "إلغاء" لعرض البطاقة فقط من دون حفظ البيانات مرة أخرى)`
       );
     }
 
@@ -660,12 +668,13 @@ function computeCell(karat, ccy, data) {
   const rate = data.fxToday[ccy];
   const todayVal = data.todayAed[karat] * (ccy === 'aed' ? 1 : rate);
   let color = COLORS.same;
-  if (data.yestAed && data.yestAed[karat] != null) {
+  if (data.yestAed && data.yestAed[karat] != null && !isNaN(data.yestAed[karat])) {
     const yRate = (data.fxYest && data.fxYest[ccy]) ? data.fxYest[ccy] : rate;
     const yestVal = data.yestAed[karat] * (ccy === 'aed' ? 1 : yRate);
     const diff = todayVal - yestVal;
-    if (Math.abs(diff) < 0.005) color = COLORS.same;
-    else color = diff > 0 ? COLORS.up : COLORS.down;
+    // A NaN diff (malformed/missing prior data slipping through) must never
+    // silently read as "down" — treat it exactly like having no prior data.
+    if (!isNaN(diff) && Math.abs(diff) >= 0.005) color = diff > 0 ? COLORS.up : COLORS.down;
   }
   return { val: todayVal, color };
 }
